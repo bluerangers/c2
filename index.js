@@ -61,7 +61,7 @@ app.use((req, res, next) => {
 // Middleware to log request body size for uploads (avoid logging full body to prevent large output)
 app.use(express.raw({ type: '*/*', limit: '10mb' })); // Parse raw body for uploads
 app.use((req, res, next) => {
-  console.log(`[Global] Incoming request: ${req.method} ${req.url}`);
+  console.log(`[Global] Incoming request: ${req.method} ${req.url} at ${new Date().toISOString()}`);
   console.log(`[Global] Headers: ${JSON.stringify(req.headers, null, 2)}`);
   if (req.body && Buffer.isBuffer(req.body)) {
     console.log(`[Global] Request body size: ${req.body.length} bytes`);
@@ -80,7 +80,7 @@ app.use('/c2', createProxyMiddleware({
   },
   onProxyReq: (proxyReq, req, res) => {
     // Detailed logging of incoming request
-    console.log(`[C2 Proxy] Proxying request: ${req.method} ${req.url}`);
+    console.log(`[C2 Proxy] Proxying request: ${req.method} ${req.url} at ${new Date().toISOString()}`);
     console.log(`[C2 Proxy] Target backend: ${proxyReq.getHeader('host')}${proxyReq.path}`);
     if (req.body && Buffer.isBuffer(req.body)) {
       console.log(`[C2 Proxy] Forwarding body of size: ${req.body.length} bytes`);
@@ -90,11 +90,11 @@ app.use('/c2', createProxyMiddleware({
   },
   onProxyRes: (proxyRes, req, res) => {
     // Log proxy response status and headers
-    console.log(`[C2 Proxy] Proxy response for ${req.url}: Status ${proxyRes.statusCode}`);
+    console.log(`[C2 Proxy] Proxy response for ${req.url}: Status ${proxyRes.statusCode} at ${new Date().toISOString()}`);
     console.log(`[C2 Proxy] Response headers: ${JSON.stringify(proxyRes.headers, null, 2)}`);
   },
   onError: (err, req, res, target) => {
-    console.error(`[C2 Proxy] Proxy error with target ${target} for ${req.url}:`, err);
+    console.error(`[C2 Proxy] Proxy error with target ${target} for ${req.url} at ${new Date().toISOString()}:`, err);
     res.status(503).send('Service Unavailable');
   }
 }));
@@ -116,20 +116,20 @@ app.use([
     return path.toLowerCase();
   },
   onProxyReq: (proxyReq, req, res) => {
-    console.log(`[Direct Proxy] Direct endpoint request: ${req.method} ${req.url}`);
+    console.log(`[Direct Proxy] Direct endpoint request: ${req.method} ${req.url} at ${new Date().toISOString()}`);
     console.log(`[Direct Proxy] Target backend: ${proxyReq.getHeader('host')}${proxyReq.path}`);
     if (req.body && Buffer.isBuffer(req.body)) {
-      console.log(`[Direct Proxy] Forwarding body of size: ${req.body.length} bytes`);
+      console.log(`[Direct Proxy] Forwarding body of size: ${req.body.length} bytes for endpoint: ${req.url}`);
       proxyReq.write(req.body); // Ensure body is forwarded for uploads
       proxyReq.end();
     }
   },
   onProxyRes: (proxyRes, req, res) => {
-    console.log(`[Direct Proxy] Proxy response for ${req.url}: Status ${proxyRes.statusCode}`);
+    console.log(`[Direct Proxy] Proxy response for ${req.url}: Status ${proxyRes.statusCode} at ${new Date().toISOString()}`);
     console.log(`[Direct Proxy] Response headers: ${JSON.stringify(proxyRes.headers, null, 2)}`);
   },
   onError: (err, req, res, target) => {
-    console.error(`[Direct Proxy] Proxy error with target ${target} for ${req.url}:`, err);
+    console.error(`[Direct Proxy] Proxy error with target ${target} for ${req.url} at ${new Date().toISOString()}:`, err);
     res.status(503).send('Service Unavailable');
   }
 }));
@@ -141,7 +141,7 @@ app.get('/', (req, res) => {
 
 // Catch-all for other requests
 app.all('*', (req, res) => {
-  console.log(`[Catch-All] Unhandled request: ${req.method} ${req.url}`);
+  console.log(`[Catch-All] Unhandled request: ${req.method} ${req.url} at ${new Date().toISOString()}`);
   res.status(404).send('Not Found');
 });
 
