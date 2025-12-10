@@ -40,11 +40,18 @@ app.use('/c2', createProxyMiddleware({
     '^/c2': '' // Remove /c2 prefix when forwarding to target
   },
   onProxyReq: (proxyReq, req, res) => {
-    // Log or modify requests if needed
-    console.log(`Proxying request to: ${proxyReq.getHeader('host')}${proxyReq.path}`);
+    // Detailed logging of incoming request
+    console.log(`Incoming request: ${req.method} ${req.url}`);
+    console.log(`Headers: ${JSON.stringify(req.headers, null, 2)}`);
+    console.log(`Proxying to: ${proxyReq.getHeader('host')}${proxyReq.path}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    // Log proxy response status and headers
+    console.log(`Proxy response for ${req.url}: Status ${proxyRes.statusCode}`);
+    console.log(`Response headers: ${JSON.stringify(proxyRes.headers, null, 2)}`);
   },
   onError: (err, req, res, target) => {
-    console.error(`Proxy error with target ${target}:`, err);
+    console.error(`Proxy error with target ${target} for ${req.url}:`, err);
     res.status(503).send('Service Unavailable');
   }
 }));
